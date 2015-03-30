@@ -35,7 +35,12 @@ trait BasicDirectives {
       ctx ⇒
         val (ctxForInnerRoute, after) = before(ctx)
         try inner(ctxForInnerRoute.withRouteResponseMapped(after))
-        catch { case NonFatal(ex) ⇒ after(Failure(ex)) }
+        catch {
+          case NonFatal(ex) ⇒ {
+            after(Failure(ex))
+            throw ex
+          }
+        }
     }
 
   def mapInnerRoute(f: Route ⇒ Route): Directive0 = new Directive0 {

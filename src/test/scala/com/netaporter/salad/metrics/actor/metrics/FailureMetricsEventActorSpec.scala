@@ -11,6 +11,7 @@ import com.netaporter.salad.metrics.messages.MetricAdminMessage.{ MetricsRespons
 import scala.concurrent.duration.Duration
 import java.util.concurrent.{ CountDownLatch, TimeUnit }
 import com.netaporter.salad.metrics.actor.factory.MetricsActorFactory
+import spray.http.StatusCodes._
 
 /**
  * Created by d.tootell@london.net-a-porter.com on 03/02/2014.
@@ -51,14 +52,16 @@ class FailureMetricsEventActorSpec extends fixture.WordSpec with Matchers with S
     val metrics = time & requestCounter
 
     metrics {
-      get {
-        pathSingleSlash { ctx =>
-          {
-            ctx.failWith(new NullPointerException("lkdjlj"))
-          }
-
+      (pathSingleSlash & get) { ctx =>
+        {
+          ctx.failWith(new NullPointerException("lkdjlj"))
         }
-      }
+      } ~
+        (path("throw") & get) { ctx =>
+          {
+            throw new IllegalArgumentException("fdsa")
+          }
+        }
     }
   }
 
@@ -100,8 +103,26 @@ class FailureMetricsEventActorSpec extends fixture.WordSpec with Matchers with S
           }
         }
       }
+    }
+    "should capture failWith" in new ActorSys {
+      val latch = new CountDownLatch(2);
+      val factory = new AtomicCounterMetricsActoryFactory(latch)
+      val metricActor = makeEventActor(factory)
+      val adminActor = makeAdminActor(factory)
 
+      Get() ~> failureRoute(metricActor, adminActor, "mytimer1") ~> check {
+        assert(status === InternalServerError)
+      }
+    }
+    "should capture exceptions" in new ActorSys {
+      val latch = new CountDownLatch(2);
+      val factory = new AtomicCounterMetricsActoryFactory(latch)
+      val metricActor = makeEventActor(factory)
+      val adminActor = makeAdminActor(factory)
+
+      Get("/throw") ~> failureRoute(metricActor, adminActor, "mytimer1") ~> check {
+        assert(status === InternalServerError)
+      }
     }
   }
-
 }
